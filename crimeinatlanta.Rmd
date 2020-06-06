@@ -1,0 +1,120 @@
+---
+title: "Crime in Atlanta 2009 - 2017"
+author: "Micaela Gimenez"
+date: "June 6, 2020"
+output: html_document
+---
+This R markdown analizes crime throughout 2009-2017 in Atlanta.
+
+# Installing necessary libraries
+
+```{r, error=FALSE, warning=FALSE, message=FALSE}
+library(readr)
+library(dplyr)
+library(DT)
+library(leaflet)
+library(ggplot2)
+library(ggrepel)
+library(scales)
+```
+# Read the data
+
+Load data with readr and read_csv()
+
+```{r, warning=FALSE, message=FALSE}
+df <- read_csv("C:/Users/micae/Documents/dataset/atlcrime.csv")
+
+```
+
+# Display data
+
+```{r,  warning=FALSE, message=FALSE}
+colnames(df)
+datatable(df, options = list(pageLength = 5,scrollX='400px'))
+```
+
+# Visualize Data
+
+## Crime in the map
+
+Display crime locations on the map with leaflet.
+```{r, warning=FALSE, message=FALSE}
+data <- as.data.frame(df)
+data <- data[1:1000,]
+data$popup <- paste("<b>Crime: </b>", data$crime,
+                    "<br>", "<b>Yeare: </b>", data$date,
+                    "<br>", "<b>Neighborhood:</b>", data$neighborhood,
+                    "<br>", "<b>Location:</b>", data$location,
+                    "<br>", "<b>Longitude:</b>", data$long,
+                    "<br>", "<b>Latitude:</b>", data$lat)
+
+leaflet(data, width = '100%') %>% addTiles() %>%
+  addTiles(group = "OSM (default)") %>%
+  addProviderTiles(provider = 'Esri.WorldStreetMap', group = 'World Streetmap') %>%
+  addProviderTiles(provider = "Esri.WorldImagery",group = "World Imagery") %>%
+  addMarkers(lng = ~long, lat = ~lat, popup = data$popup, clusterOptions = markerClusterOptions()) %>%
+  addLayersControl(
+    baseGroups = c('OSM (dafault)', 'World StreetMap', 'World Imagery'),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+```
+
+## Crime over time
+
+```{r, warning=FALSE, message=FALSE}
+df_crime_daily <- df %>%
+  mutate(Date = as.Date(date, "%m/%d/%Y")) %>%
+  group_by(Date) %>%
+  summarize(count = n()) %>%
+  arrange(Date)
+
+
+plot <- ggplot(df_crime_daily, aes(x = Date, y = count)) +
+  geom_line(color = "#F8441E", size = 0.1) +
+  geom_smooth(color = "#000000") +
+  scale_x_date(breaks = date_breaks('1 year'), labels = date_format('%Y')) +
+  labs(x = 'Date of Crime', y = 'Number of Crimes', title = 'Daily Crimes in Atlanta 2009 - 2017')
+
+plot
+
+```
+
+## Crime by Category
+
+```{r, warning=FALSE, message=FALSE}
+df_cat <- sort(table(df$crime), decreasing = TRUE)
+df_cat <- data.frame(df_cat[df_cat > 15000])
+colnames(df_cat) <- c('Category','Frequency')
+df_cat$Percentage <- df_cat$Frequency / sum(df_cat$Frequency)
+datatable(df_cat, options = list(scrollX='400 px'))
+
+
+barplot <- ggplot(df_cat, aes(x=Category, y=Frequency, fill=Category)) +
+  geom_bar(stat='identity') + 
+  theme(axis.text.x=element_blank()) +
+  geom_text_repel(data=df_cat, aes(label=Category))
+
+barplot
+```
+
+## Temporal Trends: Burglary Residence
+
+```{r, warning=FALSE, message=FALSE}
+df_burglary_residence <- data %>% 
+  filter(grepl("BURGLARY-RESIDENCE", crime))
+
+df_burglary_residence_daily <- df_burglary_residence %>%
+  mutate(Date = as.Date(date, '%m/%d/%Y')) %>%
+  group_by(Date) %>%
+  summarize(count = n()) %>%
+  arrange(Date)
+
+
+plot2 <- ggplot(df_burglary_residence_daily, aes(x = Date, y = count)) +
+  geom_line(color = '#E2580E', size = 0.1) +
+  geom_smooth(color = '#000000') +
+  scale_x_date(breaks = date_breaks("1 year"), labels = date_format('%Y')) +
+  labs(x = "Date of Burglary Residences", y = "Number of Burglary Residences", title = "Daily Burglary Residences in Atlanta from 2009 – 2017")
+plot2
+```
